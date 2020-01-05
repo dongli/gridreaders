@@ -1,0 +1,24 @@
+[submodule "lib/proj"]
+	path = lib/proj
+	url = https://github.com/dongli/fortran-proj
+[submodule "lib/sprint"]
+	path = lib/sprint
+	url = https://github.com/dongli/sprint
+[submodule "lib/fiona"]
+	path = lib/fiona
+	url = https://github.com/dongli/fiona
+[submodule "lib/datetime"]
+	path = lib/datetime
+	url = https://github.com/dongli/fortran-datetime
+[submodule "lib/container"]
+	path = lib/container
+	url = https://github.com/dongli/fortran-container
+[submodule "lib/flogger"]
+	path = lib/flogger
+	url = https://github.com/dongli/flogger
+[submodule "lib/kdtree"]
+	path = lib/kdtree
+	url = https://github.com/dongli/fortran-kdtree
+[submodule "lib/string"]
+	path = lib/string
+	url = https://github.com/dongli/fortran-string
