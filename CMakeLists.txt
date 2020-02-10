@@ -9,6 +9,12 @@ if (CMAKE_Fortran_COMPILER_ID STREQUAL "GNU")
   else ()
     set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -ffpe-summary=none -Ofast")
   endif ()
+elseif (CMAKE_Fortran_COMPILER_ID STREQUAL "Intel")
+  if (CMAKE_BUILD_TYPE MATCHES Debug)
+    set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -no-wrap-margin -g -O0 -traceback -check all -qopenmp")
+  else ()
+    set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -no-wrap-margin -Ofast -qopenmp")
+  endif ()
 endif ()
 
 set (CMAKE_Fortran_MODULE_DIRECTORY "${CMAKE_BINARY_DIR}")
@@ -33,7 +39,7 @@ target_link_libraries(nwpreaders
   fortran_datetime
   fortran_string
   fortran_proj
-  kdtree
+  fortran_kdtree
   flogger
   fiona
   sprint
