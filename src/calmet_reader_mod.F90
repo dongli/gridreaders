@@ -36,7 +36,7 @@ module calmet_reader_mod
     type(calmet_domain_type), allocatable :: domains(:)
   contains
     procedure :: init => calmet_reader_init
-    procedure :: get => calmet_reader_get
+    procedure :: locate => calmet_reader_locate
     final :: calmet_reader_final
   end type calmet_reader_type
 
@@ -44,7 +44,7 @@ contains
 
   subroutine calmet_reader_init(this, data_root, start_time, end_time, time_step_size, num_domain, mpi_comm)
 
-    class(calmet_reader_type), intent(inout) :: this
+    class(calmet_reader_type), intent(inout), target :: this
     character(*), intent(in) :: data_root
     type(datetime_type), intent(in) :: start_time
     type(datetime_type), intent(in) :: end_time
@@ -53,12 +53,15 @@ contains
     integer, intent(in), optional :: mpi_comm
 
     type(datetime_type) time
+    type(calmet_domain_type), pointer :: domain
     character(512) data_dir
     character(10) key
     integer num_proc, ierr
     integer num_dom_per_proc, extra_proc, assigned_proc_id, proc_count
     integer i, j, dom_idx, num_file
     real rlat, rlon, lat1, lat2
+
+    real(8) time1, time2, time3
 
     this%data_root = data_root
     this%start_time = start_time
@@ -116,49 +119,65 @@ contains
     ! Load CALMET grid coordinates and create interpolator.
     call fiona_init()
     do dom_idx = 1, num_domain
-      key = 'calmet.' // trim(this%domains(dom_idx)%id)
-      call fiona_open_dataset(key, file_paths=this%domains(dom_idx)%file_paths, parallel=.true., mpi_comm=mpi_comm)
-      call fiona_get_dim(key, 'x', size=this%domains(dom_idx)%nx)
-      call fiona_get_dim(key, 'y', size=this%domains(dom_idx)%ny)
+      domain => this%domains(dom_idx)
+      key = 'calmet.' // trim(domain%id)
+      call cpu_time(time1)
+      call fiona_open_dataset(key, file_paths=domain%file_paths, parallel=.true., mpi_comm=mpi_comm)
+      call fiona_get_dim(key, 'x', size=domain%nx)
+      call fiona_get_dim(key, 'y', size=domain%ny)
       call fiona_get_att(key, 'rlat', rlat)
       call fiona_get_att(key, 'rlon', rlon)
       call fiona_get_att(key, 'xlat1', lat1)
       call fiona_get_att(key, 'xlat2', lat2)
-      call this%domains(dom_idx)%p%init(latlon_crs(), lcc_crs(rlat, rlon, lat1, lat2))
-      allocate(this%domains(dom_idx)%xlon(this%domains(dom_idx)%nx,this%domains(dom_idx)%ny))
-      allocate(this%domains(dom_idx)%xlat(this%domains(dom_idx)%nx,this%domains(dom_idx)%ny))
-      allocate(this%domains(dom_idx)%x   (this%domains(dom_idx)%nx,this%domains(dom_idx)%ny))
-      allocate(this%domains(dom_idx)%y   (this%domains(dom_idx)%nx,this%domains(dom_idx)%ny))
+      call domain%p%init(latlon_crs(), lcc_crs(rlat, rlon, lat1, lat2))
+      allocate(domain%xlon(domain%nx,domain%ny))
+      allocate(domain%xlat(domain%nx,domain%ny))
+      allocate(domain%x   (domain%nx,domain%ny))
+      allocate(domain%y   (domain%nx,domain%ny))
       call fiona_start_input(key)
-      call fiona_input(key, 'xlon', this%domains(dom_idx)%xlon)
-      call fiona_input(key, 'xlat', this%domains(dom_idx)%xlat)
+      call fiona_input(key, 'xlon', domain%xlon)
+      call fiona_input(key, 'xlat', domain%xlat)
       call fiona_end_input(key)
-      do j = 1, this%domains(dom_idx)%ny
-        do i = 1, this%domains(dom_idx)%nx
-          call this%domains(dom_idx)%p%transform(this%domains(dom_idx)%xlon(i,j), &
-                                                 this%domains(dom_idx)%xlat(i,j), &
-                                                 this%domains(dom_idx)%x   (i,j), &
-                                                 this%domains(dom_idx)%y   (i,j))
+      do j = 1, domain%ny
+        do i = 1, domain%nx
+          call domain%p%transform(domain%xlon(i,j), domain%xlat(i,j), domain%x(i,j), domain%y(i,j))
         end do
       end do
-      if (this%domains(dom_idx)%assigned_proc_id == this%proc_id) then
-        call this%domains(dom_idx)%interp%init(this%domains(dom_idx)%xlon, this%domains(dom_idx)%xlat)
-        call log_notice('Create CALMET domain ' // trim(this%domains(dom_idx)%id) // ' on process ' // trim(to_string(this%proc_id)) // '.')
+      if (domain%assigned_proc_id == this%proc_id) then
+        call domain%interp%init(domain%x, domain%y)
+        call cpu_time(time2)
+        call log_notice('Create CALMET domain ' // trim(domain%id) // ' on process ' // to_string(this%proc_id) // '.' // &
+                        to_string(time2 - time1, 1) // 's')
       end if
     end do
 
   end subroutine calmet_reader_init
 
-  subroutine calmet_reader_get(this, site_lon, site_lat)
+  subroutine calmet_reader_locate(this, site_lon, site_lat)
 
-    class(calmet_reader_type), intent(inout) :: this
+    class(calmet_reader_type), intent(inout), target :: this
     real, intent(in) :: site_lon(:)
     real, intent(in) :: site_lat(:)
 
-    type(datetime_type) time
-    character(512) data_dir
+    type(calmet_domain_type), pointer :: domain
+    integer dom_idx, i
+    real site_x, site_y
 
-  end subroutine calmet_reader_get
+    do dom_idx = 1, size(this%domains)
+      domain => this%domains(dom_idx)
+      if (domain%assigned_proc_id == this%proc_id) then
+        call log_notice('Search domain ' // trim(domain%id) // '.')
+        do i = 1, size(site_lon)
+          call domain%p%transform(site_lon(i), site_lat(i), site_x, site_y)
+          call domain%interp%prepare(site_x, site_y)
+          if (.not. domain%interp%is_outside(site_x, site_y)) then
+            print *, 'FOUND'
+          end if
+        end do
+      end if
+    end do
+
+  end subroutine calmet_reader_locate
 
   subroutine calmet_reader_final(this)
 

@@ -19,6 +19,8 @@ program calmet_reader_test
   time_step_size = create_timedelta(hours=1)
 
   call calmet_reader%init('/data/works/calmet/d12_longdong', start_time, end_time, time_step_size, 36, mpi_comm=MPI_COMM_WORLD)
+  ! call calmet_reader%locate([106.9981], [37.10162])
+  call calmet_reader%locate([107.5824], [36.7639])
 
   call MPI_FINALIZE(ierr)
 
