@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.13)
 
-project(nwp-readers LANGUAGES Fortran)
+project(gridreaders LANGUAGES Fortran)
 
 if (CMAKE_Fortran_COMPILER_ID STREQUAL "GNU")
   set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -ffree-line-length-none")
@@ -30,11 +30,11 @@ add_subdirectory(lib/proj)
 add_subdirectory(lib/sprint)
 
 set(sources
-  src/calmet_reader_mod.F90
+  src/grid_ll_reader_mod.F90
 )
 
-add_library(nwpreaders ${sources})
-target_link_libraries(nwpreaders
+add_library(gridreaders ${sources})
+target_link_libraries(gridreaders
   fortran_container
   fortran_datetime
   fortran_string
@@ -45,5 +45,5 @@ target_link_libraries(nwpreaders
   sprint
 )
 
-add_executable(calmet_reader_test.exe src/calmet_reader_test.F90)
-target_link_libraries(calmet_reader_test.exe nwpreaders)
+add_executable(grid_ll_reader_test.exe src/grid_ll_reader_test.F90)
+target_link_libraries(grid_ll_reader_test.exe gridreaders)
